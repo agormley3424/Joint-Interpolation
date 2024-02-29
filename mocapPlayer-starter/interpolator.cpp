@@ -5,6 +5,7 @@
 #include "motion.h"
 #include "interpolator.h"
 #include "types.h"
+#include "transform.h"
 
 Interpolator::Interpolator()
 {
@@ -39,6 +40,11 @@ void Interpolator::Interpolate(Motion * pInputMotion, Motion ** pOutputMotion, i
     printf("Error: unknown interpolation / angle representation type.\n");
     exit(1);
   }
+}
+
+void Interpolator::DropFrames(Motion* pInputMotion, Motion* pOutputMotion, int N)
+{
+
 }
 
 void Interpolator::LinearInterpolationEuler(Motion * pInputMotion, Motion * pOutputMotion, int N)
@@ -103,7 +109,19 @@ void Interpolator::Rotation2Euler(double R[9], double angles[3])
 
 void Interpolator::Euler2Rotation(double angles[3], double R[9])
 {
-  // students should implement this
+    double xMatrix[9] = { 1.0,            0.0,             0.0,
+                          0.0, cos(angles[0]), -sin(angles[0]),
+                          0.0, sin(angles[0]), cos(angles[0]) };
+
+    double yMatrix[9] = { cos(angles[1]), 0.0, sin(angles[1]),
+                          0.0,            1.0,            0.0,
+                         -sin(angles[1]), 0.0, cos(angles[1]) };
+
+    double zMatrix[9] = { cos(angles[2]), -sin(angles[2]), 0.0,
+                           sin(angles[2]), cos(angles[2]), 0.0,
+                           0.0,            0.0,            1.0 };
+
+    R = thirdDim_matrix_mult(xMatrix, thirdDim_matrix_mult(yMatrix, zMatrix));
 }
 
 void Interpolator::BezierInterpolationEuler(Motion * pInputMotion, Motion * pOutputMotion, int N)

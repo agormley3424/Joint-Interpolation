@@ -54,6 +54,9 @@ protected:
   Quaternion<double> Slerp(double t, Quaternion<double> & qStart, Quaternion<double> & qEnd);
   Quaternion<double> Double(Quaternion<double> p, Quaternion<double> q);
 
+  // frame dropping
+  void DropFrames(Motion* pInputMotion, Motion* pOutputMotion, int N);
+
   // interpolation routines
   void LinearInterpolationEuler(Motion * pInputMotion, Motion * pOutputMotion, int N);
   void BezierInterpolationEuler(Motion * pInputMotion, Motion * pOutputMotion, int N);

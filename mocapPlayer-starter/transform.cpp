@@ -9,6 +9,7 @@ Revision 3 - Jernej Barbic and Yili Zhao, Feb, 2012
 #include <cstdio>
 #include "transform.h"
 #include "types.h"
+#include "vector.h"
 
 
 /* Compute transpose of a matrix
@@ -108,6 +109,27 @@ void matrix_mult(double a[][4], double b[][4], double c[][4])
       for(k=0;k<4;k++)
         c[i][j]+=a[i][k]*b[k][j];
     }
+}
+
+// Right matrix multiplication
+double* thirdDim_matrix_mult(double m1[9], double m2[9])
+{
+    double result[9];
+
+    // Rows
+    for (int r = 0; r < 3; ++r)
+    {
+        // Columns
+        for (int c = 0; c < 3; ++c)
+        {
+            vector dotRow = { m1[r * 3], m1[(r * 3) + 1], m1[(r * 3) + 2] };
+            vector dotCol = { m2[c], m2[3 + c], m2[6 + c] };
+
+            result[(r * 3) + c] = dotRow % dotCol;
+        }
+    }
+
+    return result;
 }
 
 /*
