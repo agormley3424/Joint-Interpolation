@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <float.h>
+#include <limits>
 #include "motion.h"
 #include "interpolator.h"
 #include "types.h"
@@ -84,6 +85,12 @@ void Interpolator::LinearInterpolationEuler(Motion * pInputMotion, Motion * pOut
 
   for(int frame=startKeyframe+1; frame<inputLength; frame++)
     pOutputMotion->SetPosture(frame, *(pInputMotion->GetPosture(frame)));
+
+  double testAngles[3];
+  Quaternion<double> testQuat = { 0.5, 2.0, 1.0, 0.1 };
+  Quaternion2Euler(testQuat, testAngles);
+
+  int i = 1;
 }
 
 void Interpolator::Rotation2Euler(double R[9], double angles[3])
@@ -107,6 +114,7 @@ void Interpolator::Rotation2Euler(double R[9], double angles[3])
     angles[i] *= 180 / M_PI;
 }
 
+// Converts assuming we're using right multiplication
 void Interpolator::Euler2Rotation(double angles[3], double R[9])
 {
     double xMatrix[9] = { 1.0,            0.0,             0.0,
@@ -146,9 +154,53 @@ void Interpolator::Euler2Quaternion(double angles[3], Quaternion<double> & q)
   // students should implement this
 }
 
+
+// Algorithm sourced from https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9648712/
 void Interpolator::Quaternion2Euler(Quaternion<double> & q, double angles[3]) 
 {
-  // students should implement this
+    // Not proper is true
+    // i == 3 (Z), j == 2 (Y), k == 1 (X)
+    // epsilon == -1
+
+    double a = q.Gets() - q.Gety();
+    double b = q.Getx() + -q.Getz();
+    double c = q.Gety() + q.Gets();
+    double d = -q.Getz() - q.Getx();
+
+    double aSqr = pow(a, 2);
+    double bSqr = pow(b, 2);
+    double cSqr = pow(c, 2);
+    double dSqr = pow(d, 2);
+
+    double theta2 = acos((2 * (aSqr + bSqr) / (aSqr + bSqr + cSqr + dSqr)) - 1);
+    double thetaPos = atan2(b, a);
+    double thetaNeg = atan2(d, c);
+    double theta1;
+    double theta3;
+    double halfPi = acos(0.0);
+
+    if (fabs(theta2) < std::numeric_limits<double>::epsilon())
+    {
+        theta1 = 0.0;
+        theta3 = 2 * thetaPos;
+    }
+    else if (fabs(theta2 - halfPi) < std::numeric_limits<double>::epsilon())
+    {
+        theta1 = 0.0;
+        theta3 = 2 * thetaNeg;
+    }
+    else
+    {
+        theta1 = thetaPos - thetaNeg;
+        theta3 = thetaPos + thetaNeg;
+    }
+
+    theta3 = -theta3;
+    theta2 -= halfPi;
+
+    angles[0] = theta1;
+    angles[1] = theta2;
+    angles[2] = theta3;
 }
 
 Quaternion<double> Interpolator::Slerp(double t, Quaternion<double> & qStart, Quaternion<double> & qEnd_)
