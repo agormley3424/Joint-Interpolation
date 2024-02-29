@@ -121,7 +121,9 @@ void Interpolator::Euler2Rotation(double angles[3], double R[9])
                            sin(angles[2]), cos(angles[2]), 0.0,
                            0.0,            0.0,            1.0 };
 
-    R = thirdDim_matrix_mult(xMatrix, thirdDim_matrix_mult(yMatrix, zMatrix));
+    double intermediate[9];
+    thirdDim_matrix_mult(yMatrix, xMatrix, intermediate);
+    thirdDim_matrix_mult(zMatrix, intermediate, R);
 }
 
 void Interpolator::BezierInterpolationEuler(Motion * pInputMotion, Motion * pOutputMotion, int N)

@@ -112,10 +112,8 @@ void matrix_mult(double a[][4], double b[][4], double c[][4])
 }
 
 // Right matrix multiplication
-double* thirdDim_matrix_mult(double m1[9], double m2[9])
+void thirdDim_matrix_mult(double m1[9], double m2[9], double output[9])
 {
-    double result[9];
-
     // Rows
     for (int r = 0; r < 3; ++r)
     {
@@ -125,11 +123,9 @@ double* thirdDim_matrix_mult(double m1[9], double m2[9])
             vector dotRow = { m1[r * 3], m1[(r * 3) + 1], m1[(r * 3) + 2] };
             vector dotCol = { m2[c], m2[3 + c], m2[6 + c] };
 
-            result[(r * 3) + c] = dotRow % dotCol;
+            output[(r * 3) + c] = dotRow % dotCol;
         }
     }
-
-    return result;
 }
 
 /*
