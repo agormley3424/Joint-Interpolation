@@ -226,9 +226,7 @@ Quaternion<double> Interpolator::Slerp(double t, Quaternion<double> & qStart, Qu
 
 Quaternion<double> Interpolator::Double(Quaternion<double> p, Quaternion<double> q)
 {
-  // students should implement this
-  Quaternion<double> result;
-  return result;
+    return (2 * p.dot(q)) * q - p;
 }
 
 vector Interpolator::DeCasteljauEuler(double t, vector p0, vector p1, vector p2, vector p3)
