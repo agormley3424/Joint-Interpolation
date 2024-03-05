@@ -86,9 +86,11 @@ void Interpolator::LinearInterpolationEuler(Motion * pInputMotion, Motion * pOut
   for(int frame=startKeyframe+1; frame<inputLength; frame++)
     pOutputMotion->SetPosture(frame, *(pInputMotion->GetPosture(frame)));
 
-  double testAngles[3] = { 0.2, 3, 1.1 };
-  Quaternion<double> testQuat;
-  Euler2Quaternion(testAngles, testQuat);
+  Quaternion<double> q1 = { 0.3362, 0.5926, 0.5965, 0.3986 };
+  //q1.Normalize();
+  Quaternion<double> q2 = { -0.3977, 0.3783, -0.7405,  -0.3878};
+  //q2.Normalize();
+  Quaternion<double> slerpVal = Slerp(0.5, q1, q2);
 
   int i = 1;
 }
@@ -216,9 +218,10 @@ void Interpolator::Quaternion2Euler(Quaternion<double> & q, double angles[3])
 
 Quaternion<double> Interpolator::Slerp(double t, Quaternion<double> & qStart, Quaternion<double> & qEnd_)
 {
-  // students should implement this
-  Quaternion<double> result;
-  return result;
+  double angle = acos(qStart.dot(qEnd_));
+
+  return (sin((1 - t) * angle) * qStart) / sin(angle) +
+      (sin(t * angle) * qEnd_) / sin(angle);
 }
 
 Quaternion<double> Interpolator::Double(Quaternion<double> p, Quaternion<double> q)

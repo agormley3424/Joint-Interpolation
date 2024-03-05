@@ -84,6 +84,8 @@ public:
   inline Quaternion operator* (const Quaternion q2) const; // q3 = q1 * q2
   inline Quaternion operator/ (const Quaternion q2) const; // q3 = q1 / q2
 
+  inline double dot (const Quaternion q2) const;
+
   // Multiply quaternion with a scalar; e.g. q1 = alpha * q2;
   friend Quaternion<real> operator* (real alpha, const Quaternion<real> q2)
   {
@@ -285,6 +287,13 @@ inline Quaternion<real> Quaternion<real>::operator/ (const Quaternion<real> q2) 
   // result = *this * invQ2
   return (*this * invQ2); 
 
+}
+
+// Calculate dot product
+template <typename real>
+inline double Quaternion<real>::dot(const Quaternion<real> q2) const
+{
+    return (s * q2.s) + (x * q2.x) + (y * q2.y) + (z * q2.z);
 }
 
 template <typename real>
