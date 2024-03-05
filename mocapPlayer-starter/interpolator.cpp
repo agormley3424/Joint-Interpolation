@@ -224,6 +224,11 @@ Quaternion<double> Interpolator::Slerp(double t, Quaternion<double> & qStart, Qu
       (sin(t * angle) * qEnd_) / sin(angle);
 }
 
+vector Interpolator::Lerp(double t, vector& vStart, vector& vEnd)
+{
+    return (vEnd * t) + vStart * (1 - t);
+}
+
 Quaternion<double> Interpolator::Double(Quaternion<double> p, Quaternion<double> q)
 {
     return (2 * p.dot(q)) * q - p;
@@ -231,15 +236,25 @@ Quaternion<double> Interpolator::Double(Quaternion<double> p, Quaternion<double>
 
 vector Interpolator::DeCasteljauEuler(double t, vector p0, vector p1, vector p2, vector p3)
 {
-  // students should implement this
-  vector result;
-  return result;
+    vector q0 = Lerp(t, p0, p1);
+    vector q1 = Lerp(t, p1, p2);
+    vector q2 = Lerp(t, p2, p3);
+
+    vector r0 = Lerp(t, q0, q1);
+    vector r1 = Lerp(t, q1, q2);
+
+    return Lerp(t, r0, r1);
 }
 
 Quaternion<double> Interpolator::DeCasteljauQuaternion(double t, Quaternion<double> p0, Quaternion<double> p1, Quaternion<double> p2, Quaternion<double> p3)
 {
-  // students should implement this
-  Quaternion<double> result;
-  return result;
+    Quaternion<double> q0 = Slerp(t, p0, p1);
+    Quaternion<double> q1 = Slerp(t, p1, p2);
+    Quaternion<double> q2 = Slerp(t, p2, p3);
+
+    Quaternion<double> r0 = Slerp(t, q0, q1);
+    Quaternion<double> r1 = Slerp(t, q1, q2);
+
+    return Slerp(t, r0, r1);
 }
 
