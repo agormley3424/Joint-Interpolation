@@ -54,6 +54,9 @@ protected:
   Quaternion<double> Slerp(double t, Quaternion<double> & qStart, Quaternion<double> & qEnd);
   Quaternion<double> Double(Quaternion<double> p, Quaternion<double> q);
 
+  // vector interpolation
+  vector Lerp(double t, vector& vStart, vector& vEnd);
+
   // frame dropping
   void DropFrames(Motion* pInputMotion, Motion* pOutputMotion, int N);
 
