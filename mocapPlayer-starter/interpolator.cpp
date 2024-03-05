@@ -86,9 +86,9 @@ void Interpolator::LinearInterpolationEuler(Motion * pInputMotion, Motion * pOut
   for(int frame=startKeyframe+1; frame<inputLength; frame++)
     pOutputMotion->SetPosture(frame, *(pInputMotion->GetPosture(frame)));
 
-  double testAngles[3];
-  Quaternion<double> testQuat = { 0.5, 2.0, 1.0, 0.1 };
-  Quaternion2Euler(testQuat, testAngles);
+  double testAngles[3] = { 0.2, 3, 1.1 };
+  Quaternion<double> testQuat;
+  Euler2Quaternion(testAngles, testQuat);
 
   int i = 1;
 }
@@ -151,13 +151,24 @@ void Interpolator::BezierInterpolationQuaternion(Motion * pInputMotion, Motion *
 
 void Interpolator::Euler2Quaternion(double angles[3], Quaternion<double> & q) 
 {
-  // students should implement this
+    Quaternion<double> xQuat{ cos(angles[0] / 2.0), sin(angles[0] / 2.0), 0.0, 0.0 };
+    Quaternion<double> yQuat{ cos(angles[1] / 2.0), 0.0, sin(angles[1] / 2.0), 0.0 };
+    Quaternion<double> zQuat{ cos(angles[2] / 2.0), 0.0, 0.0, sin(angles[2] / 2.0) };
+
+    xQuat.Normalize();
+    yQuat.Normalize();
+    zQuat.Normalize();
+
+    q = xQuat * yQuat * zQuat;
+
+    q.Normalize();
 }
 
 
 // Algorithm sourced from https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9648712/
 void Interpolator::Quaternion2Euler(Quaternion<double> & q, double angles[3]) 
 {
+    // Going in k, j, i order
     // Not proper is true
     // i == 3 (Z), j == 2 (Y), k == 1 (X)
     // epsilon == -1
