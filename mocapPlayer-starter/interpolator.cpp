@@ -95,8 +95,18 @@ void Interpolator::LinearInterpolationEuler(Motion * pInputMotion, Motion * pOut
 void Interpolator::BezierInterpolationEuler(Motion* pInputMotion, Motion* pOutputMotion, int N)
 {
     int inputLength = pInputMotion->GetNumFrames(); // frames are indexed 0, ..., inputLength-1
-    int numKeyFrames = std::min((inputLength / (N + 1)) + 1, inputLength);
+    
+    int numKeyFrames;
+    if (inputLength > 0)
+    {
+        numKeyFrames = floor((inputLength - 1) / (N + 1)) + 1;
+    }
+    else
+    {
+        numKeyFrames = 0;
+    }
 
+    // This is only set up to work with 3 or more keyframes!
     if (numKeyFrames < 3)
     {
         //printf("Interpolator Error: BezierInterpolationEuler: Fewer than three key frames are present");
@@ -109,18 +119,27 @@ void Interpolator::BezierInterpolationEuler(Motion* pInputMotion, Motion* pOutpu
     {
         int endKeyframe = startKeyframe + N + 1;
         int keyFrameIndex = startKeyframe / (N + 1);
-        bool firstKeyFrame = false;
-        bool lastKeyFrame = false;
+        bool firstKeyFrame;
+        bool lastKeyFrame;
 
+        // q(n-1)
         Posture* lastStartPosture = nullptr;
+
+        // q(n+2)
+        Posture* nextEndPosture = nullptr;
 
         // Note if this is the first keyframe
         if (startKeyframe - N - 1 < 0)
         {
             firstKeyFrame = true;
+
+            // q(n+2)
+            nextEndPosture = pInputMotion->GetPosture(endKeyframe + N + 1);
         }
         else
         {
+            firstKeyFrame = false;
+
             // q(n-1)
             lastStartPosture = pInputMotion->GetPosture(startKeyframe - N - 1);
         }
@@ -129,66 +148,68 @@ void Interpolator::BezierInterpolationEuler(Motion* pInputMotion, Motion* pOutpu
         Posture* startPosture = pInputMotion->GetPosture(startKeyframe);
         // q(n+1)
         Posture* endPosture = pInputMotion->GetPosture(endKeyframe);
-        // q(n+2)
-        Posture* nextEndPosture = nullptr;
-        // q(n-2)
-        Posture* lastLastStartPosture = nullptr;
 
         // Note if this is the penultimate keyframe
-        if (endKeyframe + N + 1 > numKeyFrames)
+        if (endKeyframe + N + 1 > inputLength)
         {
             lastKeyFrame = true;
-
-            lastLastStartPosture = pInputMotion->GetPosture(startKeyframe - (2 * N) - 2);
         }
         else
         {
-            // q(n+2)
-            nextEndPosture = pInputMotion->GetPosture(endKeyframe + N + 1);
+            lastKeyFrame = false;
         }
 
         // copy start and end keyframe
         pOutputMotion->SetPosture(startKeyframe, *startPosture);
         pOutputMotion->SetPosture(endKeyframe, *endPosture);
 
-        // Calculate all needed points for this spline, for each bone
+        /* Calculate all needed points, for the root position */
+        vector qPrev;
+        if (lastStartPosture != nullptr) qPrev = lastStartPosture->root_pos;
+        vector qNow = startPosture->root_pos;
+        vector qNext = endPosture->root_pos;
+        vector qNextNext;
+        if (nextEndPosture != nullptr) qNextNext = nextEndPosture->root_pos;
+
+        vector a;
+        vector b;
+
+        CalculateSpline(firstKeyFrame, lastKeyFrame, qPrev, qNow, qNext, qNextNext, &a, &b);
+
+        // interpolate in between frames
+        for (int frame = 1; frame <= N; frame++)
+        {
+            Posture interpolatedPosture;
+            double t = 1.0 * frame / (N + 1);
+
+            interpolatedPosture.root_pos = DeCasteljauEuler(t, qNow, a, b, qNext);
+
+            pOutputMotion->SetPosture(startKeyframe + frame, interpolatedPosture);
+        }
+
+        /* Calculate all needed points for this spline, for each bone */
         for (int bone = 1; bone <= MAX_BONES_IN_ASF_FILE; bone++)
         {
-            vector qPrevPrev;
-            vector qPrev;
-            vector qNow = startPosture->bone_rotation[bone];
-            vector qNext = endPosture->bone_rotation[bone];
-            vector qNextNext;
-
-            vector a;
-            if (firstKeyFrame)
-            {
-                a = Lerp(1.0 / 3.0, qNow, Lerp(2.0, qNextNext, qNext));
-            }
-            else
+            if (lastStartPosture != nullptr)
             {
                 qPrev = lastStartPosture->bone_rotation[bone];
-
-                vector aBar = Lerp(0.5, Lerp(2.0, qPrev, qNow), qNext);
-
-                a = Lerp(1.0 / 3.0, qNow, aBar);
-            }
-
-            vector b;
-            if (lastKeyFrame)
-            {
-                qPrevPrev = lastLastStartPosture->bone_rotation[bone];
-
-                b = Lerp(1.0 / 3.0, qNow, Lerp(2.0, qPrevPrev, qPrev));
             }
             else
             {
-                qNextNext = nextEndPosture->bone_rotation[bone];
-
-                vector aBarNext = Lerp(0.5, Lerp(2.0, qNow, qNext), qNextNext);
-
-                b = Lerp(-1.0 / 3.0, qNext, aBarNext);
+                qPrev = nullptr;
             }
+            qNow = startPosture->bone_rotation[bone];
+            qNext = endPosture->bone_rotation[bone];
+            if (nextEndPosture != nullptr)
+            {
+                qNextNext = nextEndPosture->bone_rotation[bone];
+            }
+            else
+            {
+                qNextNext = nullptr;
+            }
+
+            CalculateSpline(firstKeyFrame, lastKeyFrame, qPrev, qNow, qNext, qNextNext, &a, &b);
 
             // interpolate in between frames
             for (int frame = 1; frame <= N; frame++)
@@ -207,6 +228,36 @@ void Interpolator::BezierInterpolationEuler(Motion* pInputMotion, Motion* pOutpu
 
     for (int frame = startKeyframe + 1; frame < inputLength; frame++)
         pOutputMotion->SetPosture(frame, *(pInputMotion->GetPosture(frame)));
+}
+
+void Interpolator::CalculateSpline(bool firstKeyFrame, bool lastKeyFrame, vector& qPrev, vector& qNow, vector& qNext, vector& qNextNext, vector* aOut, vector* bOut)
+{
+    vector a = nullptr;
+    if (firstKeyFrame)
+    {
+        a = Lerp(1.0 / 3.0, qNow, Lerp(2.0, qNextNext, qNext));
+    }
+    else
+    {
+        vector aBar = Lerp(0.5, Lerp(2.0, qPrev, qNow), qNext);
+
+        a = Lerp(1.0 / 3.0, qNow, aBar);
+    }
+
+    vector b = nullptr;
+    if (lastKeyFrame)
+    {
+        b = Lerp(1.0 / 3.0, qNext, Lerp(2.0, qPrev, qNow));
+    }
+    else
+    {
+        vector aBarNext = Lerp(0.5, Lerp(2.0, qNow, qNext), qNextNext);
+
+        b = Lerp(-1.0 / 3.0, qNext, aBarNext);
+    }
+
+    *aOut = a;
+    *bOut = b;
 }
 
 void Interpolator::LinearInterpolationQuaternion(Motion* pInputMotion, Motion* pOutputMotion, int N)
