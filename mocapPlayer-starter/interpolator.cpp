@@ -3,6 +3,9 @@
 #include <string.h>
 #include <float.h>
 #include <limits>
+#include <fstream>
+#include <iostream>
+#include <string>
 #include <stdexcept>
 #include "motion.h"
 #include "interpolator.h"
@@ -171,56 +174,38 @@ void Interpolator::BezierInterpolationEuler(Motion* pInputMotion, Motion* pOutpu
         vector qNextNext;
         if (nextEndPosture != nullptr) qNextNext = nextEndPosture->root_pos;
 
-        vector a;
-        vector b;
+        vector a[MAX_BONES_IN_ASF_FILE + 1];
+        vector b[MAX_BONES_IN_ASF_FILE + 1];
 
-        CalculateSpline(firstKeyFrame, lastKeyFrame, qPrev, qNow, qNext, qNextNext, &a, &b);
+        // Calculate spline for root position
+        CalculateSpline(firstKeyFrame, lastKeyFrame, qPrev, qNow, qNext, qNextNext, a[0], b[0]);
 
-        // interpolate in between frames
-        for (int frame = 1; frame <= N; frame++)
-        {
-            Posture interpolatedPosture;
-            double t = 1.0 * frame / (N + 1);
-
-            interpolatedPosture.root_pos = DeCasteljauEuler(t, qNow, a, b, qNext);
-
-            pOutputMotion->SetPosture(startKeyframe + frame, interpolatedPosture);
-        }
-
-        /* Calculate all needed points for this spline, for each bone */
+        /* Calculate splines for all the bones */
         for (int bone = 1; bone <= MAX_BONES_IN_ASF_FILE; bone++)
         {
-            if (lastStartPosture != nullptr)
-            {
-                qPrev = lastStartPosture->bone_rotation[bone];
-            }
-            else
-            {
-                qPrev = nullptr;
-            }
+            if (lastStartPosture != nullptr) qPrev = lastStartPosture->bone_rotation[bone];
             qNow = startPosture->bone_rotation[bone];
             qNext = endPosture->bone_rotation[bone];
-            if (nextEndPosture != nullptr)
+            if (nextEndPosture != nullptr) qNextNext = nextEndPosture->bone_rotation[bone];
+
+            CalculateSpline(firstKeyFrame, lastKeyFrame, qPrev, qNow, qNext, qNextNext, a[bone], b[bone]);
+        }
+
+        Posture interpolatedPosture;
+
+        // interpolate in-between frames
+        for (int frame = 1; frame <= N; frame++)
+        {
+            double t = 1.0 * frame / (N + 1);
+
+            interpolatedPosture.root_pos = DeCasteljauEuler(t, qNow, a[0], b[0], qNext);
+
+            for (int bone = 1; bone <= MAX_BONES_IN_ASF_FILE; bone++)
             {
-                qNextNext = nextEndPosture->bone_rotation[bone];
-            }
-            else
-            {
-                qNextNext = nullptr;
+                interpolatedPosture.bone_rotation[bone - 1] = DeCasteljauEuler(t, qNow, a[bone], b[bone], qNext);
             }
 
-            CalculateSpline(firstKeyFrame, lastKeyFrame, qPrev, qNow, qNext, qNextNext, &a, &b);
-
-            // interpolate in between frames
-            for (int frame = 1; frame <= N; frame++)
-            {
-                Posture interpolatedPosture;
-                double t = 1.0 * frame / (N + 1);
-
-                interpolatedPosture.bone_rotation[bone] = DeCasteljauEuler(t, qNow, a, b, qNext);
-
-                pOutputMotion->SetPosture(startKeyframe + frame, interpolatedPosture);
-            }
+            pOutputMotion->SetPosture(startKeyframe + frame, interpolatedPosture);
         }
 
         startKeyframe = endKeyframe;
@@ -228,11 +213,12 @@ void Interpolator::BezierInterpolationEuler(Motion* pInputMotion, Motion* pOutpu
 
     for (int frame = startKeyframe + 1; frame < inputLength; frame++)
         pOutputMotion->SetPosture(frame, *(pInputMotion->GetPosture(frame)));
+
+    CompareMotion(pInputMotion, pOutputMotion, "motionComparison");
 }
 
-void Interpolator::CalculateSpline(bool firstKeyFrame, bool lastKeyFrame, vector& qPrev, vector& qNow, vector& qNext, vector& qNextNext, vector* aOut, vector* bOut)
+void Interpolator::CalculateSpline(bool firstKeyFrame, bool lastKeyFrame, vector& qPrev, vector& qNow, vector& qNext, vector& qNextNext, vector& a, vector& b)
 {
-    vector a = nullptr;
     if (firstKeyFrame)
     {
         a = Lerp(1.0 / 3.0, qNow, Lerp(2.0, qNextNext, qNext));
@@ -244,7 +230,6 @@ void Interpolator::CalculateSpline(bool firstKeyFrame, bool lastKeyFrame, vector
         a = Lerp(1.0 / 3.0, qNow, aBar);
     }
 
-    vector b = nullptr;
     if (lastKeyFrame)
     {
         b = Lerp(1.0 / 3.0, qNext, Lerp(2.0, qPrev, qNow));
@@ -255,9 +240,40 @@ void Interpolator::CalculateSpline(bool firstKeyFrame, bool lastKeyFrame, vector
 
         b = Lerp(-1.0 / 3.0, qNext, aBarNext);
     }
+}
 
-    *aOut = a;
-    *bOut = b;
+void Interpolator::CompareMotion(Motion* motion1, Motion* motion2, std::string fileName)
+{
+    int inputLength1 = motion1->GetNumFrames();
+    int inputLength2 = motion1->GetNumFrames();
+
+    if (inputLength1 != inputLength2)
+    {
+        throw std::exception("Interpolator Error: CompareMotion: Two Motions have different number of frames");
+    }
+
+    std::ofstream outputFile;
+    outputFile.open(fileName + ".csv");
+    outputFile << "Frame,Type,x1,y1,z1,x2,y2,z2\n";
+
+    for (int frame = 0; frame < inputLength1; frame++)
+    {
+        Posture* posture1 = motion1->GetPosture(frame);
+        Posture* posture2 = motion2->GetPosture(frame);
+
+        outputFile << frame << ",root_pos," << posture1->root_pos.x() << ',' <<
+            posture1->root_pos.y() << ',' << posture1->root_pos.z() << ',' << posture2->root_pos.x() <<
+            ',' << posture2->root_pos.y() << ',' << posture2->root_pos.z() << std::endl;
+
+        for (int bone = 0; bone < MAX_BONES_IN_ASF_FILE; bone++)
+        {
+            outputFile << frame << ",bone_rotation," << posture1->bone_rotation[bone].x() << ',' <<
+                posture1->bone_rotation[bone].y() << ',' << posture1->bone_rotation[bone].z() << ',' << posture2->bone_rotation[bone].x() <<
+                ',' << posture2->bone_rotation[bone].y() << ',' << posture2->bone_rotation[bone].z() << std::endl;
+        }
+    }
+
+    outputFile.close();
 }
 
 void Interpolator::LinearInterpolationQuaternion(Motion* pInputMotion, Motion* pOutputMotion, int N)

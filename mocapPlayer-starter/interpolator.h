@@ -66,6 +66,12 @@ protected:
   void LinearInterpolationQuaternion(Motion * pInputMotion, Motion * pOutputMotion, int N);
   void BezierInterpolationQuaternion(Motion * pInputMotion, Motion * pOutputMotion, int N);
 
+  // Calculate a spline from a set of sequential quaternions
+  void CalculateSpline(bool firstKeyFrame, bool lastKeyFrame, vector& qPrev, vector& qNow, vector& qNext, vector& qNextNext, vector& a, vector& b);
+
+  // Compare the joint angles and root position of two Motion objects
+  void CompareMotion(Motion* motion1, Motion* motion2, std::string fileName);
+
   // Bezier spline evaluation
   vector DeCasteljauEuler(double t, vector p0, vector p1, vector p2, vector p3); // evaluate Bezier spline at t, using DeCasteljau construction, vector version
   Quaternion<double> DeCasteljauQuaternion(double t, Quaternion<double> p0, Quaternion<double> p1, Quaternion<double> p2, Quaternion<double> p3); // evaluate Bezier spline at t, using DeCasteljau construction, Quaternion version
