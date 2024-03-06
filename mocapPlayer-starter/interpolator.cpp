@@ -181,28 +181,32 @@ void Interpolator::BezierInterpolationEuler(Motion* pInputMotion, Motion* pOutpu
         CalculateSpline(firstKeyFrame, lastKeyFrame, qPrev, qNow, qNext, qNextNext, a[0], b[0]);
 
         /* Calculate splines for all the bones */
-        for (int bone = 1; bone <= MAX_BONES_IN_ASF_FILE; bone++)
+        for (int bone = 0; bone < MAX_BONES_IN_ASF_FILE; bone++)
         {
             if (lastStartPosture != nullptr) qPrev = lastStartPosture->bone_rotation[bone];
             qNow = startPosture->bone_rotation[bone];
             qNext = endPosture->bone_rotation[bone];
             if (nextEndPosture != nullptr) qNextNext = nextEndPosture->bone_rotation[bone];
 
-            CalculateSpline(firstKeyFrame, lastKeyFrame, qPrev, qNow, qNext, qNextNext, a[bone], b[bone]);
+            CalculateSpline(firstKeyFrame, lastKeyFrame, qPrev, qNow, qNext, qNextNext, a[bone + 1], b[bone + 1]);
         }
-
-        Posture interpolatedPosture;
 
         // interpolate in-between frames
         for (int frame = 1; frame <= N; frame++)
         {
+            Posture interpolatedPosture;
+
             double t = 1.0 * frame / (N + 1);
 
+            qNow = startPosture->root_pos;
+            qNext = endPosture->root_pos;
             interpolatedPosture.root_pos = DeCasteljauEuler(t, qNow, a[0], b[0], qNext);
 
-            for (int bone = 1; bone <= MAX_BONES_IN_ASF_FILE; bone++)
+            for (int bone = 0; bone < MAX_BONES_IN_ASF_FILE; bone++)
             {
-                interpolatedPosture.bone_rotation[bone - 1] = DeCasteljauEuler(t, qNow, a[bone], b[bone], qNext);
+                qNow = startPosture->bone_rotation[bone];
+                qNext = endPosture->bone_rotation[bone];
+                interpolatedPosture.bone_rotation[bone] = DeCasteljauEuler(t, qNow, a[bone + 1], b[bone + 1], qNext);
             }
 
             pOutputMotion->SetPosture(startKeyframe + frame, interpolatedPosture);
