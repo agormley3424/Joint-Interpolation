@@ -135,9 +135,6 @@ void Interpolator::BezierInterpolationEuler(Motion* pInputMotion, Motion* pOutpu
         if (startKeyframe - N - 1 < 0)
         {
             firstKeyFrame = true;
-
-            // q(n+2)
-            nextEndPosture = pInputMotion->GetPosture(endKeyframe + N + 1);
         }
         else
         {
@@ -152,14 +149,17 @@ void Interpolator::BezierInterpolationEuler(Motion* pInputMotion, Motion* pOutpu
         // q(n+1)
         Posture* endPosture = pInputMotion->GetPosture(endKeyframe);
 
-        // Note if this is the penultimate keyframe
-        if (endKeyframe + N + 1 > inputLength)
+        // Note if this is the final keyframe
+        if (endKeyframe + N + 1 >= inputLength)
         {
             lastKeyFrame = true;
         }
         else
         {
             lastKeyFrame = false;
+
+            // q(n+2)
+            nextEndPosture = pInputMotion->GetPosture(endKeyframe + N + 1);
         }
 
         // copy start and end keyframe
@@ -187,6 +187,11 @@ void Interpolator::BezierInterpolationEuler(Motion* pInputMotion, Motion* pOutpu
             qNow = startPosture->bone_rotation[bone];
             qNext = endPosture->bone_rotation[bone];
             if (nextEndPosture != nullptr) qNextNext = nextEndPosture->bone_rotation[bone];
+
+            //if (startKeyframe == 1080)
+            //{
+            //    int i = 0;
+            //}
 
             CalculateSpline(firstKeyFrame, lastKeyFrame, qPrev, qNow, qNext, qNextNext, a[bone + 1], b[bone + 1]);
         }
@@ -271,7 +276,7 @@ void Interpolator::CompareMotion(Motion* motion1, Motion* motion2, std::string f
 
         for (int bone = 0; bone < MAX_BONES_IN_ASF_FILE; bone++)
         {
-            outputFile << frame << ",bone_rotation," << posture1->bone_rotation[bone].x() << ',' <<
+            outputFile << frame << ",bone_rotation_" << bone << "," << posture1->bone_rotation[bone].x() << ',' <<
                 posture1->bone_rotation[bone].y() << ',' << posture1->bone_rotation[bone].z() << ',' << posture2->bone_rotation[bone].x() <<
                 ',' << posture2->bone_rotation[bone].y() << ',' << posture2->bone_rotation[bone].z() << std::endl;
         }
