@@ -287,7 +287,65 @@ void Interpolator::CompareMotion(Motion* motion1, Motion* motion2, std::string f
 
 void Interpolator::LinearInterpolationQuaternion(Motion* pInputMotion, Motion* pOutputMotion, int N)
 {
-    // students should implement this
+    int inputLength = pInputMotion->GetNumFrames(); // frames are indexed 0, ..., inputLength-1
+
+    // Iterate through every key frame
+    int startKeyframe = 0;
+    while (startKeyframe + N + 1 < inputLength)
+    {
+        int endKeyframe = startKeyframe + N + 1;
+
+        Posture* startPosture = pInputMotion->GetPosture(startKeyframe);
+        Posture* endPosture = pInputMotion->GetPosture(endKeyframe);
+
+        // copy start and end keyframe
+        pOutputMotion->SetPosture(startKeyframe, *startPosture);
+        pOutputMotion->SetPosture(endKeyframe, *endPosture);
+
+        // interpolate in between
+        for (int frame = 1; frame <= N; frame++)
+        {
+            Posture interpolatedPosture;
+            double t = 1.0 * frame / (N + 1);
+
+            // interpolate root position
+            /* Needs to be edited for each method */
+            interpolatedPosture.root_pos = startPosture->root_pos * (1 - t) + endPosture->root_pos * t;
+
+            // interpolate bone rotations
+            /* Needs to be edited for each method */
+            for (int bone = 0; bone < MAX_BONES_IN_ASF_FILE; bone++)
+            {
+                // Convert euler angles to quaternions and interpolate
+                Quaternion<double> startPos = Euler2QuaternionVector(startPosture->bone_rotation[bone]);
+
+                Quaternion<double> endPos = Euler2QuaternionVector(endPosture->bone_rotation[bone]);
+
+                if ((frame + startKeyframe) == 1 && bone == 21)
+                {
+                    int i = 1;
+                }
+
+                Quaternion<double> result = Slerp(t, startPos, endPos);
+
+                // Convert result back into euler angles
+                vector resultEuler = Quaternion2EulerVector(result);
+
+                vector linearInterpEuler = startPosture->bone_rotation[bone] * (1 - t) + endPosture->bone_rotation[bone] * t;
+
+                interpolatedPosture.bone_rotation[bone] = resultEuler;
+            }
+
+            pOutputMotion->SetPosture(startKeyframe + frame, interpolatedPosture);
+        }
+
+        startKeyframe = endKeyframe;
+    }
+
+    for (int frame = startKeyframe + 1; frame < inputLength; frame++)
+        pOutputMotion->SetPosture(frame, *(pInputMotion->GetPosture(frame)));
+
+    CompareMotion(pInputMotion, pOutputMotion, "motionComparison");
 }
 
 void Interpolator::BezierInterpolationQuaternion(Motion* pInputMotion, Motion* pOutputMotion, int N)
@@ -336,6 +394,18 @@ void Interpolator::Euler2Rotation(double angles[3], double R[9])
     thirdDim_matrix_mult(zMatrix, intermediate, R);
 }
 
+Quaternion<double> Interpolator::Euler2QuaternionVector(vector& angles)
+{
+    Quaternion<double> result;
+    double angleArr[3];
+    angleArr[0] = angles.x();
+    angleArr[1] = angles.y();
+    angleArr[2] = angles.z();
+    Euler2Quaternion(angleArr, result);
+
+    return result;
+}
+
 void Interpolator::Euler2Quaternion(double angles[3], Quaternion<double> & q) 
 {
     Quaternion<double> xQuat{ cos(angles[0] / 2.0), sin(angles[0] / 2.0), 0.0, 0.0 };
@@ -349,6 +419,18 @@ void Interpolator::Euler2Quaternion(double angles[3], Quaternion<double> & q)
     q = xQuat * yQuat * zQuat;
 
     q.Normalize();
+}
+
+vector Interpolator::Quaternion2EulerVector(Quaternion<double>& q)
+{
+    double angles[3];
+    Quaternion2Euler(q, angles);
+    vector result;
+    result.set_x(angles[0]);
+    result.set_y(angles[1]);
+    result.set_z(angles[2]);
+
+    return result;
 }
 
 
@@ -401,15 +483,101 @@ void Interpolator::Quaternion2Euler(Quaternion<double> & q, double angles[3])
     angles[2] = theta3;
 }
 
+//void Interpolator::Quaternion2Euler(Quaternion<double>& q, double angles[3])
+//{
+//    /* Phind suggestion (Didn't work) */ 
+//
+//    //angles[0] = atan2(2 * (q.Gets() * q.Getx() + q.Gety() * q.Getz()), 1 - 2 * (pow(q.Getx(), 2) + pow(q.Gety(), 2)));
+//    //angles[1] = asin(2 * (q.Gets() * q.Gety() - q.Getz() * q.Getx()));
+//    //angles[2] = atan2(2 * (q.Gets() * q.Getz() + q.Getx() * q.Gety()), 1 - 2 * (pow(q.Gety(), 2) + pow(q.Getz(), 2)));
+//
+//    /* Matrix conversion (Didn't work) */
+//    //double rotMatrix[9];
+//    //Quaternion2Rotation(q, rotMatrix);
+//    //Rotation2Euler(rotMatrix, angles);
+//
+//    /* From stackoverflow post (https://stackoverflow.com/questions/70462758/c-sharp-how-to-convert-quaternions-to-euler-angles-xyz) */
+//    //double pi = acos(0.0) * 2;
+//    //// roll / x
+//    //double sinr_cosp = 2 * (q.Gets() * q.Getx() + q.Gety() * q.Getz());
+//    //double cosr_cosp = 1 - 2 * (q.Getx() * q.Getx() + q.Gety() * q.Gety());
+//    //angles[0] = atan2(sinr_cosp, cosr_cosp);
+//
+//    //// pitch / y
+//    //double sinp = 2 * (q.Gets() * q.Gety() - q.Getz() * q.Getx());
+//    //if (abs(sinp) >= 1)
+//    //{
+//    //    angles[1] = copysign(pi / 2.0, sinp);
+//    //}
+//    //else
+//    //{
+//    //    angles[1] = asin(sinp);
+//    //}
+//
+//    //// yaw / z
+//    //double siny_cosp = 2 * (q.Gets() * q.Getz() + q.Getx() * q.Gety());
+//    //double cosy_cosp = 1 - 2 * (q.Gety() * q.Gety() + q.Getz() * q.Getz());
+//    //angles[2] = atan2(siny_cosp, cosy_cosp);
+//
+//    /* In-built quaternion matrix methods */
+//    double R[9];
+//    q.Quaternion2Matrix(R);
+//    Rotation2Euler(R, angles);
+//}
+
+void Interpolator::Quaternion2Rotation(Quaternion<double>& q, double R[9])
+{
+    R[0] = pow(q.Gets(), 2) + pow(q.Getx(), 2) - pow(q.Gety(), 2) - pow(q.Getz(), 2);
+    R[1] = 2.0 * q.Getx() * q.Gety() - 2.0 * q.Gets() * q.Getz();
+    R[2] = 2.0 * q.Getx() * q.Getz() + 2.0 * q.Gets() * q.Gety();
+
+    R[3] = 2.0 * q.Getx() * q.Gety() + 2.0 * q.Gets() * q.Getz();
+    R[4] = pow(q.Gets(), 2) - pow(q.Getx(), 2) + pow(q.Gety(), 2) - pow(q.Getz(), 2);
+    R[5] = 2.0 * q.Gety() * q.Getz() - 2.0 * q.Gets() * q.Getx();
+    
+    R[6] = 2.0 * q.Getx() * q.Getz() - 2.0 * q.Gets() * q.Gety();
+    R[7] = 2.0 * q.Gety() * q.Getz() + 2.0 * q.Gets() * q.Getx();
+    R[8] = pow(q.Gets(), 2) - pow(q.Getx(), 2) - pow(q.Gety(), 2) + pow(q.Getz(), 2);
+}
+
 Quaternion<double> Interpolator::Slerp(double t, Quaternion<double> & qStart, Quaternion<double> & qEnd_)
 {
-  double angle = acos(qStart.dot(qEnd_));
+  double angle1 = acos(qStart.dot(qEnd_));
 
-  return (sin((1 - t) * angle) * qStart) / sin(angle) +
-      (sin(t * angle) * qEnd_) / sin(angle);
+  double angle2 = acos(qStart.dot(-1 * qEnd_));
+
+  double angle = std::min(angle1, angle2);
+
+  if (abs(qStart.Norm() - qEnd_.Norm()) < std::numeric_limits<double>::epsilon())
+  {
+      angle = 0.0;
+  }
+
+  Quaternion<double> result;
+
+  if (abs(sin(angle)) < std::numeric_limits<double>::epsilon())
+  {
+      result = Lerp(t, qStart, qEnd_);
+      result.Normalize();
+  }
+  else
+  {
+      result = ((sin((1 - t) * angle) * qStart) / sin(angle)) +
+          ((sin(t * angle) * qEnd_) / sin(angle));
+  }
+
+  //result = (sin((1 - t) * angle) * qStart) / sin(angle) +
+  //    (sin(t * angle) * qEnd_) / sin(angle);
+
+  return result;
 }
 
 vector Interpolator::Lerp(double t, vector& vStart, vector& vEnd)
+{
+    return (vEnd * t) + vStart * (1 - t);
+}
+
+Quaternion<double> Interpolator::Lerp(double t, Quaternion<double>& vStart, Quaternion<double>& vEnd)
 {
     return (vEnd * t) + vStart * (1 - t);
 }

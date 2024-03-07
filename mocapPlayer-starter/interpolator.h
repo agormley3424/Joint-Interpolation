@@ -49,6 +49,9 @@ protected:
   void Euler2Rotation(double angles[3], double R[9]);
   void Euler2Quaternion(double angles[3], Quaternion<double> & q); 
   void Quaternion2Euler(Quaternion<double> & q, double angles[3]); 
+  void Quaternion2Rotation(Quaternion<double>& q, double R[9]);
+  Quaternion<double> Euler2QuaternionVector(vector& angles);
+  vector Quaternion2EulerVector(Quaternion<double>& q);
 
   // quaternion interpolation
   Quaternion<double> Slerp(double t, Quaternion<double> & qStart, Quaternion<double> & qEnd);
@@ -56,6 +59,7 @@ protected:
 
   // vector interpolation
   vector Lerp(double t, vector& vStart, vector& vEnd);
+  Quaternion<double> Lerp(double t, Quaternion<double>& vStart, Quaternion<double>& vEnd);
 
   // frame dropping
   void DropFrames(Motion* pInputMotion, Motion* pOutputMotion, int N);
