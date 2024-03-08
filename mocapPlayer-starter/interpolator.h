@@ -72,6 +72,7 @@ protected:
 
   // Calculate a spline from a set of sequential quaternions
   void CalculateSpline(bool firstKeyFrame, bool lastKeyFrame, vector& qPrev, vector& qNow, vector& qNext, vector& qNextNext, vector& a, vector& b);
+  void CalculateSplineQuaternion(bool firstKeyFrame, bool lastKeyFrame, Quaternion<double>& qPrev, Quaternion<double>& qNow, Quaternion<double>& qNext, Quaternion<double>& qNextNext, Quaternion<double>& a, Quaternion<double>& b);
 
   // Compare the joint angles and root position of two Motion objects
   void CompareMotion(Motion* motion1, Motion* motion2, std::string fileName);

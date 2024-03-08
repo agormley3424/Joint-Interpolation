@@ -330,16 +330,7 @@ void Interpolator::LinearInterpolationQuaternion(Motion* pInputMotion, Motion* p
                 // Convert result back into euler angles
                 vector resultEuler = Quaternion2EulerVector(result);
 
-                //vector linearInterpEuler = startPosture->bone_rotation[bone] * (1 - t) + endPosture->bone_rotation[bone] * t;
-
-                vector linearInterpEuler = startEuler * (1 - t) + endEuler * t;
-
                 interpolatedPosture.bone_rotation[bone] = resultEuler;
-
-                if (bone == 21)
-                {
-                    int i = 1;
-                }
             }
 
             pOutputMotion->SetPosture(startKeyframe + frame, interpolatedPosture);
@@ -356,7 +347,167 @@ void Interpolator::LinearInterpolationQuaternion(Motion* pInputMotion, Motion* p
 
 void Interpolator::BezierInterpolationQuaternion(Motion* pInputMotion, Motion* pOutputMotion, int N)
 {
-    // students should implement this
+    int inputLength = pInputMotion->GetNumFrames(); // frames are indexed 0, ..., inputLength-1
+
+    int numKeyFrames;
+    if (inputLength > 0)
+    {
+        numKeyFrames = floor((inputLength - 1) / (N + 1)) + 1;
+    }
+    else
+    {
+        numKeyFrames = 0;
+    }
+
+    // This is only set up to work with 3 or more keyframes!
+    if (numKeyFrames < 3)
+    {
+        //printf("Interpolator Error: BezierInterpolationEuler: Fewer than three key frames are present");
+        throw std::exception("Interpolator Error: BezierInterpolationEuler: Fewer than three key frames are present");
+    }
+
+    // Iterate through every key frame
+    int startKeyframe = 0;
+    while (startKeyframe + N + 1 < inputLength)
+    {
+        int endKeyframe = startKeyframe + N + 1;
+        int keyFrameIndex = startKeyframe / (N + 1);
+        bool firstKeyFrame;
+        bool lastKeyFrame;
+
+        // q(n-1)
+        Posture* lastStartPosture = nullptr;
+
+        // q(n+2)
+        Posture* nextEndPosture = nullptr;
+
+        // Note if this is the first keyframe
+        if (startKeyframe - N - 1 < 0)
+        {
+            firstKeyFrame = true;
+        }
+        else
+        {
+            firstKeyFrame = false;
+
+            // q(n-1)
+            lastStartPosture = pInputMotion->GetPosture(startKeyframe - N - 1);
+        }
+
+        // q(n)
+        Posture* startPosture = pInputMotion->GetPosture(startKeyframe);
+        // q(n+1)
+        Posture* endPosture = pInputMotion->GetPosture(endKeyframe);
+
+        // Note if this is the final keyframe
+        if (endKeyframe + N + 1 >= inputLength)
+        {
+            lastKeyFrame = true;
+        }
+        else
+        {
+            lastKeyFrame = false;
+
+            // q(n+2)
+            nextEndPosture = pInputMotion->GetPosture(endKeyframe + N + 1);
+        }
+
+        // copy start and end keyframe
+        pOutputMotion->SetPosture(startKeyframe, *startPosture);
+        pOutputMotion->SetPosture(endKeyframe, *endPosture);
+
+        /* Calculate all needed points, for the root position */
+        vector qPrev;
+        if (lastStartPosture != nullptr) qPrev = lastStartPosture->root_pos;
+        vector qNow = startPosture->root_pos;
+        vector qNext = endPosture->root_pos;
+        vector qNextNext;
+        if (nextEndPosture != nullptr) qNextNext = nextEndPosture->root_pos;
+
+        vector aRoot;
+        vector bRoot;
+
+        // Calculate spline for root position
+        CalculateSpline(firstKeyFrame, lastKeyFrame, qPrev, qNow, qNext, qNextNext, aRoot, bRoot);
+
+        Quaternion<double> a[MAX_BONES_IN_ASF_FILE];
+        Quaternion<double> b[MAX_BONES_IN_ASF_FILE];
+        /* Calculate splines for all the bones */
+        for (int bone = 0; bone < MAX_BONES_IN_ASF_FILE; bone++)
+        {
+            Quaternion<double> qPrevQuat;
+            if (lastStartPosture != nullptr) qPrevQuat = Euler2QuaternionVector(lastStartPosture->bone_rotation[bone]);
+            Quaternion<double> qNowQuat = Euler2QuaternionVector(startPosture->bone_rotation[bone]);
+            Quaternion<double> qNextQuat = Euler2QuaternionVector(endPosture->bone_rotation[bone]);
+            Quaternion<double> qNextNextQuat;
+            if (nextEndPosture != nullptr) qNextNextQuat = Euler2QuaternionVector(nextEndPosture->bone_rotation[bone]);
+
+            //if (startKeyframe == 1080)
+            //{
+            //    int i = 0;
+            //}
+
+            CalculateSplineQuaternion(firstKeyFrame, lastKeyFrame, qPrevQuat, qNowQuat, qNextQuat, qNextNextQuat, a[bone], b[bone]);
+
+            int i = 0;
+        }
+
+        // interpolate in-between frames
+        for (int frame = 1; frame <= N; frame++)
+        {
+            Posture interpolatedPosture;
+
+            double t = 1.0 * frame / (N + 1);
+
+            // For the root position
+            qNow = startPosture->root_pos;
+            qNext = endPosture->root_pos;
+            interpolatedPosture.root_pos = DeCasteljauEuler(t, qNow, aRoot, bRoot, qNext);
+
+            // For the bone angles
+            for (int bone = 0; bone < MAX_BONES_IN_ASF_FILE; bone++)
+            {
+                Quaternion<double> qNowQuat = Euler2QuaternionVector(startPosture->bone_rotation[bone]);
+                Quaternion<double> qNextQuat = Euler2QuaternionVector(endPosture->bone_rotation[bone]);
+                Quaternion<double> interpPos = DeCasteljauQuaternion(t, qNowQuat, a[bone], b[bone], qNextQuat);
+                interpolatedPosture.bone_rotation[bone] = Quaternion2EulerVector(interpPos);
+            }
+
+            pOutputMotion->SetPosture(startKeyframe + frame, interpolatedPosture);
+        }
+
+        startKeyframe = endKeyframe;
+    }
+
+    for (int frame = startKeyframe + 1; frame < inputLength; frame++)
+        pOutputMotion->SetPosture(frame, *(pInputMotion->GetPosture(frame)));
+
+    CompareMotion(pInputMotion, pOutputMotion, "motionComparison");
+}
+
+void Interpolator::CalculateSplineQuaternion(bool firstKeyFrame, bool lastKeyFrame, Quaternion<double>& qPrev, Quaternion<double>& qNow, Quaternion<double>& qNext, Quaternion<double>& qNextNext, Quaternion<double>& a, Quaternion<double>& b)
+{
+    if (firstKeyFrame)
+    {
+        a = Slerp(1.0 / 3.0, qNow, Slerp(2.0, qNextNext, qNext));
+    }
+    else
+    {
+        Quaternion<double> aBar = Slerp(0.5, Slerp(2.0, qPrev, qNow), qNext);
+
+        a = Slerp(1.0 / 3.0, qNow, aBar);
+    }
+
+    if (lastKeyFrame)
+    {
+        b = Slerp(1.0 / 3.0, qNext, Slerp(2.0, qPrev, qNow));
+    }
+    else
+    {
+        Quaternion<double> aBarNext = Slerp(0.5, Slerp(2.0, qNow, qNext), qNextNext);
+
+        b = Slerp(-1.0 / 3.0, qNext, aBarNext);
+    }
 }
 
 // pi rads = 180 deg
@@ -437,24 +588,19 @@ Quaternion<double> Interpolator::Euler2QuaternionVector(vector& angles)
 
 void Interpolator::Euler2Quaternion(double angles[3], Quaternion<double> & q) 
 {
-    //double radAngles[3];
-    //DegreesToRadians(angles, radAngles);
-    //Quaternion<double> xQuat{ cos(radAngles[0] / 2.0), sin(radAngles[0] / 2.0), 0.0, 0.0 };
-    //Quaternion<double> yQuat{ cos(radAngles[1] / 2.0), 0.0, sin(radAngles[1] / 2.0), 0.0 };
-    //Quaternion<double> zQuat{ cos(radAngles[2] / 2.0), 0.0, 0.0, sin(radAngles[2] / 2.0) };
+    double radAngles[3];
+    DegreesToRadians(angles, radAngles);
+    Quaternion<double> xQuat{ cos(radAngles[0] / 2.0), sin(radAngles[0] / 2.0), 0.0, 0.0 };
+    Quaternion<double> yQuat{ cos(radAngles[1] / 2.0), 0.0, sin(radAngles[1] / 2.0), 0.0 };
+    Quaternion<double> zQuat{ cos(radAngles[2] / 2.0), 0.0, 0.0, sin(radAngles[2] / 2.0) };
 
-    //xQuat.Normalize();
-    //yQuat.Normalize();
-    //zQuat.Normalize();
+    xQuat.Normalize();
+    yQuat.Normalize();
+    zQuat.Normalize();
 
-    //q = zQuat * yQuat * xQuat;
+    q = zQuat * yQuat * xQuat;
 
-    //q.Normalize();
-
-    double R[9];
-    Euler2Rotation(angles, R);
-
-    q = Quaternion<double>::Matrix2Quaternion(R);
+    q.Normalize();
 }
 
 vector Interpolator::Quaternion2EulerVector(Quaternion<double>& q)
@@ -470,18 +616,21 @@ vector Interpolator::Quaternion2EulerVector(Quaternion<double>& q)
 }
 
 
-// Algorithm sourced from https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9648712/
+ // Algorithm sourced from https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9648712/
 //void Interpolator::Quaternion2Euler(Quaternion<double> & q, double angles[3]) 
 //{
+//    double radAngles[3];
+//    DegreesToRadians(angles, radAngles);
+//
 //    // Going in k, j, i order
 //    // Not proper is true
-//    // i == 3 (Z), j == 2 (Y), k == 1 (X)
-//    // epsilon == -1
+//    // i == 1 (X), j == 2 (Y), k == 3 (X)
+//    // epsilon == 1
 //
 //    double a = q.Gets() - q.Gety();
-//    double b = q.Getx() + -q.Getz();
+//    double b = q.Getx() + q.Getz();
 //    double c = q.Gety() + q.Gets();
-//    double d = -q.Getz() - q.Getx();
+//    double d = q.Getz() - q.Getx();
 //
 //    double aSqr = pow(a, 2);
 //    double bSqr = pow(b, 2);
@@ -511,55 +660,62 @@ vector Interpolator::Quaternion2EulerVector(Quaternion<double>& q)
 //        theta3 = thetaPos + thetaNeg;
 //    }
 //
-//    theta3 = -theta3;
 //    theta2 -= halfPi;
 //
-//    angles[0] = theta1;
-//    angles[1] = theta2;
-//    angles[2] = theta3;
+//    radAngles[0] = theta1;
+//    radAngles[1] = theta2;
+//    radAngles[2] = theta3;
+//}
+
+//void Interpolator::Quaternion2Euler(Quaternion<double>& q, double angles[3])
+//{
+//    /* Phind suggestion (Didn't work) */ 
+//
+//    //angles[0] = atan2(2 * (q.Gets() * q.Getx() + q.Gety() * q.Getz()), 1 - 2 * (pow(q.Getx(), 2) + pow(q.Gety(), 2)));
+//    //angles[1] = asin(2 * (q.Gets() * q.Gety() - q.Getz() * q.Getx()));
+//    //angles[2] = atan2(2 * (q.Gets() * q.Getz() + q.Getx() * q.Gety()), 1 - 2 * (pow(q.Gety(), 2) + pow(q.Getz(), 2)));
+//
+//    /* Matrix conversion (Didn't work) */
+//    //double rotMatrix[9];
+//    //Quaternion2Rotation(q, rotMatrix);
+//    //Rotation2Euler(rotMatrix, angles);
+//
+//    /* From stackoverflow post (https://stackoverflow.com/questions/70462758/c-sharp-how-to-convert-quaternions-to-euler-angles-xyz) */
+//    //double pi = acos(0.0) * 2;
+//    //// roll / x
+//    //double sinr_cosp = 2 * (q.Gets() * q.Getx() + q.Gety() * q.Getz());
+//    //double cosr_cosp = 1 - 2 * (q.Getx() * q.Getx() + q.Gety() * q.Gety());
+//    //angles[0] = atan2(sinr_cosp, cosr_cosp);
+//
+//    //// pitch / y
+//    //double sinp = 2 * (q.Gets() * q.Gety() - q.Getz() * q.Getx());
+//    //if (abs(sinp) >= 1)
+//    //{
+//    //    angles[1] = copysign(pi / 2.0, sinp);
+//    //}
+//    //else
+//    //{
+//    //    angles[1] = asin(sinp);
+//    //}
+//
+//    //// yaw / z
+//    //double siny_cosp = 2 * (q.Gets() * q.Getz() + q.Getx() * q.Gety());
+//    //double cosy_cosp = 1 - 2 * (q.Gety() * q.Gety() + q.Getz() * q.Getz());
+//    //angles[2] = atan2(siny_cosp, cosy_cosp);
+//
+//    /* In-built quaternion matrix methods */
+//    double R[9];
+//    q.Quaternion2Matrix(R);
+//    Rotation2Euler(R, angles);
+//    // RadiansToDegrees(angles, angles);
 //}
 
 void Interpolator::Quaternion2Euler(Quaternion<double>& q, double angles[3])
 {
-    /* Phind suggestion (Didn't work) */ 
-
-    //angles[0] = atan2(2 * (q.Gets() * q.Getx() + q.Gety() * q.Getz()), 1 - 2 * (pow(q.Getx(), 2) + pow(q.Gety(), 2)));
-    //angles[1] = asin(2 * (q.Gets() * q.Gety() - q.Getz() * q.Getx()));
-    //angles[2] = atan2(2 * (q.Gets() * q.Getz() + q.Getx() * q.Gety()), 1 - 2 * (pow(q.Gety(), 2) + pow(q.Getz(), 2)));
-
-    /* Matrix conversion (Didn't work) */
-    //double rotMatrix[9];
-    //Quaternion2Rotation(q, rotMatrix);
-    //Rotation2Euler(rotMatrix, angles);
-
-    /* From stackoverflow post (https://stackoverflow.com/questions/70462758/c-sharp-how-to-convert-quaternions-to-euler-angles-xyz) */
-    //double pi = acos(0.0) * 2;
-    //// roll / x
-    //double sinr_cosp = 2 * (q.Gets() * q.Getx() + q.Gety() * q.Getz());
-    //double cosr_cosp = 1 - 2 * (q.Getx() * q.Getx() + q.Gety() * q.Gety());
-    //angles[0] = atan2(sinr_cosp, cosr_cosp);
-
-    //// pitch / y
-    //double sinp = 2 * (q.Gets() * q.Gety() - q.Getz() * q.Getx());
-    //if (abs(sinp) >= 1)
-    //{
-    //    angles[1] = copysign(pi / 2.0, sinp);
-    //}
-    //else
-    //{
-    //    angles[1] = asin(sinp);
-    //}
-
-    //// yaw / z
-    //double siny_cosp = 2 * (q.Gets() * q.Getz() + q.Getx() * q.Gety());
-    //double cosy_cosp = 1 - 2 * (q.Gety() * q.Gety() + q.Getz() * q.Getz());
-    //angles[2] = atan2(siny_cosp, cosy_cosp);
-
-    /* In-built quaternion matrix methods */
     double R[9];
     q.Quaternion2Matrix(R);
     Rotation2Euler(R, angles);
-    // RadiansToDegrees(angles, angles);
+    // Output is already in degrees
 }
 
 void Interpolator::Quaternion2Rotation(Quaternion<double>& q, double R[9])
@@ -585,7 +741,8 @@ Quaternion<double> Interpolator::Slerp(double t, Quaternion<double> & qStart, Qu
 
   double angle = std::min(angle1, angle2);
 
-  if (abs(qStart.Norm() - qEnd_.Norm()) < std::numeric_limits<double>::epsilon())
+  // If angle is undefined, set to 0
+  if (angle != angle)
   {
       angle = 0.0;
   }
