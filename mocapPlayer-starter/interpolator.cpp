@@ -325,16 +325,16 @@ void Interpolator::LinearInterpolationQuaternion(Motion* pInputMotion, Motion* p
 
                 vector endEuler = Quaternion2EulerVector(endPos);
 
-                // Quaternion<double> result = Slerp(t, startPos, endPos);
+                Quaternion<double> result = Slerp(t, startPos, endPos);
 
                 // Convert result back into euler angles
-                // vector resultEuler = Quaternion2EulerVector(result);
+                vector resultEuler = Quaternion2EulerVector(result);
 
                 //vector linearInterpEuler = startPosture->bone_rotation[bone] * (1 - t) + endPosture->bone_rotation[bone] * t;
 
                 vector linearInterpEuler = startEuler * (1 - t) + endEuler * t;
 
-                interpolatedPosture.bone_rotation[bone] = linearInterpEuler;
+                interpolatedPosture.bone_rotation[bone] = resultEuler;
 
                 if (bone == 21)
                 {
