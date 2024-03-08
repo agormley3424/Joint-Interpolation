@@ -80,6 +80,9 @@ protected:
   vector DeCasteljauEuler(double t, vector p0, vector p1, vector p2, vector p3); // evaluate Bezier spline at t, using DeCasteljau construction, vector version
   Quaternion<double> DeCasteljauQuaternion(double t, Quaternion<double> p0, Quaternion<double> p1, Quaternion<double> p2, Quaternion<double> p3); // evaluate Bezier spline at t, using DeCasteljau construction, Quaternion version
 
+
+  void DegreesToRadians(double angles[3], double radAngles[3]);
+  void RadiansToDegrees(double angles[3], double radAngles[3]);
 };
 
 #endif
