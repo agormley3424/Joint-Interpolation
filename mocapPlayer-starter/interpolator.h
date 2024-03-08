@@ -84,6 +84,7 @@ protected:
 
   void DegreesToRadians(double angles[3], double radAngles[3]);
   void RadiansToDegrees(double angles[3], double radAngles[3]);
+  double Clamp(double value, double low, double high);
 };
 
 #endif

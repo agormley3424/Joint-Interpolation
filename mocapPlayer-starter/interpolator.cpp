@@ -7,6 +7,7 @@
 #include <iostream>
 #include <string>
 #include <stdexcept>
+#include <algorithm>
 #include "motion.h"
 #include "interpolator.h"
 #include "types.h"
@@ -615,101 +616,6 @@ vector Interpolator::Quaternion2EulerVector(Quaternion<double>& q)
     return result;
 }
 
-
- // Algorithm sourced from https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9648712/
-//void Interpolator::Quaternion2Euler(Quaternion<double> & q, double angles[3]) 
-//{
-//    double radAngles[3];
-//    DegreesToRadians(angles, radAngles);
-//
-//    // Going in k, j, i order
-//    // Not proper is true
-//    // i == 1 (X), j == 2 (Y), k == 3 (X)
-//    // epsilon == 1
-//
-//    double a = q.Gets() - q.Gety();
-//    double b = q.Getx() + q.Getz();
-//    double c = q.Gety() + q.Gets();
-//    double d = q.Getz() - q.Getx();
-//
-//    double aSqr = pow(a, 2);
-//    double bSqr = pow(b, 2);
-//    double cSqr = pow(c, 2);
-//    double dSqr = pow(d, 2);
-//
-//    double theta2 = acos((2 * (aSqr + bSqr) / (aSqr + bSqr + cSqr + dSqr)) - 1);
-//    double thetaPos = atan2(b, a);
-//    double thetaNeg = atan2(d, c);
-//    double theta1;
-//    double theta3;
-//    double halfPi = acos(0.0);
-//
-//    if (fabs(theta2) < std::numeric_limits<double>::epsilon())
-//    {
-//        theta1 = 0.0;
-//        theta3 = 2 * thetaPos;
-//    }
-//    else if (fabs(theta2 - halfPi) < std::numeric_limits<double>::epsilon())
-//    {
-//        theta1 = 0.0;
-//        theta3 = 2 * thetaNeg;
-//    }
-//    else
-//    {
-//        theta1 = thetaPos - thetaNeg;
-//        theta3 = thetaPos + thetaNeg;
-//    }
-//
-//    theta2 -= halfPi;
-//
-//    radAngles[0] = theta1;
-//    radAngles[1] = theta2;
-//    radAngles[2] = theta3;
-//}
-
-//void Interpolator::Quaternion2Euler(Quaternion<double>& q, double angles[3])
-//{
-//    /* Phind suggestion (Didn't work) */ 
-//
-//    //angles[0] = atan2(2 * (q.Gets() * q.Getx() + q.Gety() * q.Getz()), 1 - 2 * (pow(q.Getx(), 2) + pow(q.Gety(), 2)));
-//    //angles[1] = asin(2 * (q.Gets() * q.Gety() - q.Getz() * q.Getx()));
-//    //angles[2] = atan2(2 * (q.Gets() * q.Getz() + q.Getx() * q.Gety()), 1 - 2 * (pow(q.Gety(), 2) + pow(q.Getz(), 2)));
-//
-//    /* Matrix conversion (Didn't work) */
-//    //double rotMatrix[9];
-//    //Quaternion2Rotation(q, rotMatrix);
-//    //Rotation2Euler(rotMatrix, angles);
-//
-//    /* From stackoverflow post (https://stackoverflow.com/questions/70462758/c-sharp-how-to-convert-quaternions-to-euler-angles-xyz) */
-//    //double pi = acos(0.0) * 2;
-//    //// roll / x
-//    //double sinr_cosp = 2 * (q.Gets() * q.Getx() + q.Gety() * q.Getz());
-//    //double cosr_cosp = 1 - 2 * (q.Getx() * q.Getx() + q.Gety() * q.Gety());
-//    //angles[0] = atan2(sinr_cosp, cosr_cosp);
-//
-//    //// pitch / y
-//    //double sinp = 2 * (q.Gets() * q.Gety() - q.Getz() * q.Getx());
-//    //if (abs(sinp) >= 1)
-//    //{
-//    //    angles[1] = copysign(pi / 2.0, sinp);
-//    //}
-//    //else
-//    //{
-//    //    angles[1] = asin(sinp);
-//    //}
-//
-//    //// yaw / z
-//    //double siny_cosp = 2 * (q.Gets() * q.Getz() + q.Getx() * q.Gety());
-//    //double cosy_cosp = 1 - 2 * (q.Gety() * q.Gety() + q.Getz() * q.Getz());
-//    //angles[2] = atan2(siny_cosp, cosy_cosp);
-//
-//    /* In-built quaternion matrix methods */
-//    double R[9];
-//    q.Quaternion2Matrix(R);
-//    Rotation2Euler(R, angles);
-//    // RadiansToDegrees(angles, angles);
-//}
-
 void Interpolator::Quaternion2Euler(Quaternion<double>& q, double angles[3])
 {
     double R[9];
@@ -733,19 +639,29 @@ void Interpolator::Quaternion2Rotation(Quaternion<double>& q, double R[9])
     R[8] = pow(q.Gets(), 2) - pow(q.Getx(), 2) - pow(q.Gety(), 2) + pow(q.Getz(), 2);
 }
 
+double Interpolator::Clamp(double value, double low, double high)
+{
+    if (value < low)
+    {
+        return low;
+    }
+    else if (value > high)
+    {
+        return high;
+    }
+    else
+    {
+        return value;
+    }
+}
+
 Quaternion<double> Interpolator::Slerp(double t, Quaternion<double> & qStart, Quaternion<double> & qEnd_)
 {
-  double angle1 = acos(qStart.dot(qEnd_));
+  double angle1 = acos(Clamp(qStart.dot(qEnd_), -1.0, 1.0));
 
-  double angle2 = acos(qStart.dot(-1 * qEnd_));
+  double angle2 = acos(Clamp(qStart.dot(-1 * qEnd_), -1.0, 1.0));
 
   double angle = std::min(angle1, angle2);
-
-  // If angle is undefined, set to 0
-  if (angle != angle)
-  {
-      angle = 0.0;
-  }
 
   Quaternion<double> result;
 
@@ -759,9 +675,6 @@ Quaternion<double> Interpolator::Slerp(double t, Quaternion<double> & qStart, Qu
       result = ((sin((1 - t) * angle) * qStart) / sin(angle)) +
           ((sin(t * angle) * qEnd_) / sin(angle));
   }
-
-  //result = (sin((1 - t) * angle) * qStart) / sin(angle) +
-  //    (sin(t * angle) * qEnd_) / sin(angle);
 
   return result;
 }
