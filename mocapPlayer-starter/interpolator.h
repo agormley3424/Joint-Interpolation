@@ -75,7 +75,7 @@ protected:
   void CalculateSplineQuaternion(bool firstKeyFrame, bool lastKeyFrame, Quaternion<double>& qPrev, Quaternion<double>& qNow, Quaternion<double>& qNext, Quaternion<double>& qNextNext, Quaternion<double>& a, Quaternion<double>& b);
 
   // Compare the joint angles and root position of two Motion objects
-  void CompareMotion(Motion* motion1, Motion* motion2, std::string fileName);
+  void CompareMotion(Motion* motion, char angle, int bone, std::string motionName);
 
   // Bezier spline evaluation
   vector DeCasteljauEuler(double t, vector p0, vector p1, vector p2, vector p3); // evaluate Bezier spline at t, using DeCasteljau construction, vector version

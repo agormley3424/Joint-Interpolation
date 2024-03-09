@@ -94,6 +94,8 @@ void Interpolator::LinearInterpolationEuler(Motion * pInputMotion, Motion * pOut
 
   for(int frame=startKeyframe+1; frame<inputLength; frame++)
     pOutputMotion->SetPosture(frame, *(pInputMotion->GetPosture(frame)));
+
+  // CompareMotion(pOutputMotion, 'z', 0, "LinearInterpolationEuler");
 }
 
 void Interpolator::BezierInterpolationEuler(Motion* pInputMotion, Motion* pOutputMotion, int N)
@@ -224,7 +226,7 @@ void Interpolator::BezierInterpolationEuler(Motion* pInputMotion, Motion* pOutpu
     for (int frame = startKeyframe + 1; frame < inputLength; frame++)
         pOutputMotion->SetPosture(frame, *(pInputMotion->GetPosture(frame)));
 
-    CompareMotion(pInputMotion, pOutputMotion, "motionComparison");
+    // CompareMotion(pOutputMotion, 'z', 0, "Bezier Euler");
 }
 
 void Interpolator::CalculateSpline(bool firstKeyFrame, bool lastKeyFrame, vector& qPrev, vector& qNow, vector& qNext, vector& qNextNext, vector& a, vector& b)
@@ -252,35 +254,30 @@ void Interpolator::CalculateSpline(bool firstKeyFrame, bool lastKeyFrame, vector
     }
 }
 
-void Interpolator::CompareMotion(Motion* motion1, Motion* motion2, std::string fileName)
+// Used for comparisons between motion streams
+void Interpolator::CompareMotion(Motion* motion, char angle, int bone, std::string motionName)
 {
-    int inputLength1 = motion1->GetNumFrames();
-    int inputLength2 = motion1->GetNumFrames();
-
-    if (inputLength1 != inputLength2)
-    {
-        throw std::exception("Interpolator Error: CompareMotion: Two Motions have different number of frames");
-    }
-
     std::ofstream outputFile;
-    outputFile.open(fileName + ".csv");
-    outputFile << "Frame,Type,x1,y1,z1,x2,y2,z2\n";
+    outputFile.open(motionName + angle + ".csv");
 
-    for (int frame = 0; frame < inputLength1; frame++)
+    outputFile << "Type,Frame,Angle\n";
+
+    for (int frame = 0; frame < motion->GetNumFrames(); frame++)
     {
-        Posture* posture1 = motion1->GetPosture(frame);
-        Posture* posture2 = motion2->GetPosture(frame);
+        Posture* posture = motion->GetPosture(frame);
 
-        outputFile << frame << ",root_pos," << posture1->root_pos.x() << ',' <<
-            posture1->root_pos.y() << ',' << posture1->root_pos.z() << ',' << posture2->root_pos.x() <<
-            ',' << posture2->root_pos.y() << ',' << posture2->root_pos.z() << std::endl;
+        outputFile << motionName << ',' << frame << ',';
 
-        for (int bone = 0; bone < MAX_BONES_IN_ASF_FILE; bone++)
+        if (angle == 'x')
         {
-            outputFile << frame << ",bone_rotation_" << bone << "," << posture1->bone_rotation[bone].x() << ',' <<
-                posture1->bone_rotation[bone].y() << ',' << posture1->bone_rotation[bone].z() << ',' << posture2->bone_rotation[bone].x() <<
-                ',' << posture2->bone_rotation[bone].y() << ',' << posture2->bone_rotation[bone].z() << std::endl;
+            outputFile << posture->bone_rotation[bone].x();
         }
+        else if (angle == 'z')
+        {
+            outputFile << posture->bone_rotation[bone].z();
+        }
+
+        outputFile << std::endl;
     }
 
     outputFile.close();
@@ -343,7 +340,9 @@ void Interpolator::LinearInterpolationQuaternion(Motion* pInputMotion, Motion* p
     for (int frame = startKeyframe + 1; frame < inputLength; frame++)
         pOutputMotion->SetPosture(frame, *(pInputMotion->GetPosture(frame)));
 
-    CompareMotion(pInputMotion, pOutputMotion, "motionComparison");
+    // CompareMotion(pInputMotion, pOutputMotion, "motionComparison");
+
+    // CompareMotion(pOutputMotion, 'x', 2, "LinearQuaternion");
 }
 
 void Interpolator::BezierInterpolationQuaternion(Motion* pInputMotion, Motion* pOutputMotion, int N)
@@ -483,7 +482,9 @@ void Interpolator::BezierInterpolationQuaternion(Motion* pInputMotion, Motion* p
     for (int frame = startKeyframe + 1; frame < inputLength; frame++)
         pOutputMotion->SetPosture(frame, *(pInputMotion->GetPosture(frame)));
 
-    CompareMotion(pInputMotion, pOutputMotion, "motionComparison");
+    // CompareMotion(pInputMotion, pOutputMotion, "motionComparison");
+
+    // CompareMotion(pOutputMotion, 'x', 2, "Bezier quaternion");
 }
 
 void Interpolator::CalculateSplineQuaternion(bool firstKeyFrame, bool lastKeyFrame, Quaternion<double>& qPrev, Quaternion<double>& qNow, Quaternion<double>& qNext, Quaternion<double>& qNextNext, Quaternion<double>& a, Quaternion<double>& b)
